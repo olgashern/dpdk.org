@@ -407,7 +407,7 @@ mlx5_tx_burst(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 		unsigned int ds = 0;
 		uintptr_t addr;
 		uint16_t pkt_inline_sz = MLX5_WQE_DWORD_SIZE;
-		uint8_t ehdr[2];
+		uint16_t ehdr;
 		uint8_t cs_flags = 0;
 #ifdef MLX5_PMD_SOFT_COUNTERS
 		uint32_t total_length = 0;
@@ -434,8 +434,8 @@ mlx5_tx_burst(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 			rte_prefetch0(*pkts);
 		addr = rte_pktmbuf_mtod(buf, uintptr_t);
 		length = DATA_LEN(buf);
-		ehdr[0] = ((uint8_t *)addr)[0];
-		ehdr[1] = ((uint8_t *)addr)[1];
+		ehdr = (((uint8_t *)addr)[1] << 8) |
+		       ((uint8_t *)addr)[0];
 #ifdef MLX5_PMD_SOFT_COUNTERS
 		total_length = length;
 #endif
@@ -598,8 +598,7 @@ next_pkt:
 			0,
 			cs_flags,
 			0,
-			(ehdr[1] << 24) | (ehdr[0] << 16) |
-			htons(pkt_inline_sz),
+			(ehdr << 16) | htons(pkt_inline_sz),
 		};
 		txq->wqe_ci += (ds + 3) / 4;
 #ifdef MLX5_PMD_SOFT_COUNTERS
