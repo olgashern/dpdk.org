@@ -368,8 +368,6 @@ mlx5_tx_burst(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 	if (unlikely(!pkts_n))
 		return 0;
 	/* Prefetch first packet cacheline. */
-	tx_prefetch_cqe(txq, txq->cq_ci);
-	tx_prefetch_cqe(txq, txq->cq_ci + 1);
 	rte_prefetch0(*pkts);
 	/* Start processing. */
 	txq_complete(txq);
@@ -707,7 +705,6 @@ mlx5_tx_burst_mpw(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 	if (unlikely(!pkts_n))
 		return 0;
 	/* Prefetch first packet cacheline. */
-	tx_prefetch_cqe(txq, txq->cq_ci);
 	rte_prefetch0(tx_mlx5_wqe(txq, txq->wqe_ci));
 	rte_prefetch0(tx_mlx5_wqe(txq, txq->wqe_ci + 1));
 	/* Start processing. */
@@ -913,7 +910,6 @@ mlx5_tx_burst_mpw_inline(void *dpdk_txq, struct rte_mbuf **pkts,
 	if (unlikely(!pkts_n))
 		return 0;
 	/* Prefetch first packet cacheline. */
-	tx_prefetch_cqe(txq, txq->cq_ci);
 	rte_prefetch0(tx_mlx5_wqe(txq, txq->wqe_ci));
 	rte_prefetch0(tx_mlx5_wqe(txq, txq->wqe_ci + 1));
 	/* Start processing. */
