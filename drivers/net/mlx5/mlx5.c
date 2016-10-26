@@ -412,9 +412,21 @@ mlx5_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 		       PCI_DEVICE_ID_MELLANOX_CONNECTX4VF) ||
 		      (pci_dev->id.device_id ==
 		       PCI_DEVICE_ID_MELLANOX_CONNECTX4LXVF));
-		/* Multi-packet send is only supported by ConnectX-4 Lx PF. */
-		mps = (pci_dev->id.device_id ==
-		       PCI_DEVICE_ID_MELLANOX_CONNECTX4LX);
+		/*
+		 * Multi-packet send is supported by ConnectX-4 Lx PF as well
+		 * as all ConnectX-5 devices.
+		 */
+		switch (pci_dev->id.device_id) {
+		case PCI_DEVICE_ID_MELLANOX_CONNECTX4LX:
+		case PCI_DEVICE_ID_MELLANOX_CONNECTX5:
+		case PCI_DEVICE_ID_MELLANOX_CONNECTX5VF:
+		case PCI_DEVICE_ID_MELLANOX_CONNECTX5EX:
+		case PCI_DEVICE_ID_MELLANOX_CONNECTX5EXVF:
+			mps = 1;
+			break;
+		default:
+			mps = 0;
+		}
 		INFO("PCI information matches, using device \"%s\""
 		     " (SR-IOV: %s, MPS: %s)",
 		     list[i]->name,
