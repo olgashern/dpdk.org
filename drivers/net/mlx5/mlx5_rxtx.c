@@ -343,7 +343,7 @@ mlx5_tx_dbrec(struct txq *txq)
 	*txq->qp_db = htonl(txq->wqe_ci);
 	/* Ensure ordering between DB record and BF copy. */
 	rte_wmb();
-	rte_mov16(dst, (uint8_t *)data);
+	memcpy(dst, (uint8_t *)data, 16);
 	txq->bf_offset ^= (1 << txq->bf_buf_size);
 }
 
@@ -444,7 +444,7 @@ mlx5_tx_burst(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 		 * bytes which will be appended at the end of the Ethernet
 		 * segment.
 		 */
-		rte_mov16((uint8_t *)raw, ((uint8_t *)addr) + 2);
+		memcpy((uint8_t *)raw, ((uint8_t *)addr) + 2, 16);
 		length -= MLX5_WQE_DWORD_SIZE;
 		addr += MLX5_WQE_DWORD_SIZE;
 		/* Replace the Ethernet type by the VLAN if necessary. */
