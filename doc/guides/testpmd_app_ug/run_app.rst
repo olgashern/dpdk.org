@@ -317,10 +317,6 @@ The commandline options are:
 
     Enable per-queue packet drop for packets with no descriptors.
 
-*   ``--enable-timestamps``
-
-    Enable timesync and per packet timestamping for all ports.
-
 *   ``--disable-rss``
 
     Disable RSS (Receive Side Scaling).

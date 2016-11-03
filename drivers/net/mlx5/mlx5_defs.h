@@ -79,8 +79,4 @@
 /* Alarm timeout. */
 #define MLX5_ALARM_TIMEOUT_US 100000
 
-/* Clock deviation fix alarm timeout*/
-#define MLX5_ALARM_CLOCK_DEVIATION_US 5000000
-#define MLX5_CLOCK_DEVIATION_THRESHOLD 10
-
 #endif /* RTE_PMD_MLX5_DEFS_H_ */
