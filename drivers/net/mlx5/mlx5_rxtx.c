@@ -290,30 +290,6 @@ txq_mp2mr(struct txq *txq, struct rte_mempool *mp)
 }
 
 /**
- * Ring TX queue doorbell.
- *
- * @param txq
- *   Pointer to TX queue structure.
- */
-static inline void
-mlx5_tx_dbrec(struct txq *txq)
-{
-	uint8_t *dst = (uint8_t *)((uintptr_t)txq->bf_reg + txq->bf_offset);
-	uint32_t data[4] = {
-		htonl((txq->wqe_ci << 8) | MLX5_OPCODE_SEND),
-		htonl(txq->qp_num_8s),
-		0,
-		0,
-	};
-	rte_wmb();
-	*txq->qp_db = htonl(txq->wqe_ci);
-	/* Ensure ordering between DB record and BF copy. */
-	rte_wmb();
-	memcpy(dst, (uint8_t *)data, 16);
-	txq->bf_offset ^= (1 << txq->bf_buf_size);
-}
-
-/**
  * Prefetch a CQE.
  *
  * @param txq
@@ -596,7 +572,8 @@ next_pkt:
 	txq->stats.opackets += i;
 #endif
 	/* Ring QP doorbell. */
-	mlx5_tx_dbrec(txq);
+	rte_wmb();
+	*(volatile uint64_t*)txq->bf_reg = *(volatile uint64_t *)wqe;
 	txq->elts_head = elts_head;
 	return i;
 }
@@ -804,7 +781,8 @@ mlx5_tx_burst_mpw(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 	/* Ring QP doorbell. */
 	if (mpw.state == MLX5_MPW_STATE_OPENED)
 		mlx5_mpw_close(txq, &mpw);
-	mlx5_tx_dbrec(txq);
+	rte_wmb();
+	*(volatile uint64_t*)txq->bf_reg = *(volatile uint64_t *)mpw.wqe;
 	txq->elts_head = elts_head;
 	return i;
 }
@@ -1073,7 +1051,8 @@ mlx5_tx_burst_mpw_inline(void *dpdk_txq, struct rte_mbuf **pkts,
 		mlx5_mpw_inline_close(txq, &mpw);
 	else if (mpw.state == MLX5_MPW_STATE_OPENED)
 		mlx5_mpw_close(txq, &mpw);
-	mlx5_tx_dbrec(txq);
+	rte_wmb();
+	*(volatile uint64_t*)txq->bf_reg = *(volatile uint64_t *)mpw.wqe;
 	txq->elts_head = elts_head;
 	return i;
 }
