@@ -2995,20 +2995,25 @@ rxq_cq_to_ol_flags(const struct rxq *rxq, uint32_t flags)
 
 	if (rxq->csum)
 		ol_flags |=
-			TRANSPOSE(flags,
+			TRANSPOSE(~flags,
 				  IBV_EXP_CQ_RX_IP_CSUM_OK,
-				  PKT_RX_IP_CKSUM_GOOD) |
-			TRANSPOSE(flags,
+				  PKT_RX_IP_CKSUM_BAD) |
+			TRANSPOSE(~flags,
 				  IBV_EXP_CQ_RX_TCP_UDP_CSUM_OK,
-				  PKT_RX_L4_CKSUM_GOOD);
+				  PKT_RX_L4_CKSUM_BAD);
+	/*
+	 * PKT_RX_IP_CKSUM_BAD and PKT_RX_L4_CKSUM_BAD are used in place
+	 * of PKT_RX_EIP_CKSUM_BAD because the latter is not functional
+	 * (its value is 0).
+	 */
 	if ((flags & IBV_EXP_CQ_RX_TUNNEL_PACKET) && (rxq->csum_l2tun))
 		ol_flags |=
-			TRANSPOSE(flags,
+			TRANSPOSE(~flags,
 				  IBV_EXP_CQ_RX_OUTER_IP_CSUM_OK,
-				  PKT_RX_IP_CKSUM_GOOD) |
-			TRANSPOSE(flags,
+				  PKT_RX_IP_CKSUM_BAD) |
+			TRANSPOSE(~flags,
 				  IBV_EXP_CQ_RX_OUTER_TCP_UDP_CSUM_OK,
-				  PKT_RX_L4_CKSUM_GOOD);
+				  PKT_RX_L4_CKSUM_BAD);
 	return ol_flags;
 }
 

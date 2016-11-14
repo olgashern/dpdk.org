@@ -44,7 +44,6 @@
 #pragma GCC diagnostic error "-Wpedantic"
 #endif
 
-#include <rte_vect.h>
 #include "mlx5_autoconf.h"
 
 /* Get CQE owner bit. */
@@ -85,27 +84,6 @@
 #define MLX5_OPCODE_TSO MLX5_OPCODE_LSO_MPW /* Compat with OFED 3.3. */
 #endif
 
-/* IPv4 packet. */
-#define MLX5_CQE_RX_IPV4_PACKET (1u << 2)
-
-/* IPv6 packet. */
-#define MLX5_CQE_RX_IPV6_PACKET (1u << 3)
-
-/* Outer IPv4 packet. */
-#define MLX5_CQE_RX_OUTER_IPV4_PACKET (1u << 7)
-
-/* Outer IPv6 packet. */
-#define MLX5_CQE_RX_OUTER_IPV6_PACKET (1u << 8)
-
-/* Tunnel packet bit in the CQE. */
-#define MLX5_CQE_RX_TUNNEL_PACKET (1u << 4)
-
-/* Outer IP checksum OK. */
-#define MLX5_CQE_RX_OUTER_IP_CSUM_OK (1u << 5)
-
-/* Outer UDP header and checksum OK. */
-#define MLX5_CQE_RX_OUTER_TCP_UDP_CSUM_OK (1u << 6)
-
 /* Subset of struct mlx5_wqe_eth_seg. */
 struct mlx5_wqe_eth_seg_small {
 	uint32_t rsvd0;
@@ -115,19 +93,12 @@ struct mlx5_wqe_eth_seg_small {
 	uint32_t rsvd2;
 	uint16_t inline_hdr_sz;
 	uint8_t inline_hdr[2];
-} __rte_aligned(MLX5_WQE_DWORD_SIZE);
+};
 
 struct mlx5_wqe_inl_small {
 	uint32_t byte_cnt;
 	uint8_t raw;
-} __rte_aligned(MLX5_WQE_DWORD_SIZE);
-
-struct mlx5_wqe_ctrl {
-	uint32_t ctrl0;
-	uint32_t ctrl1;
-	uint32_t ctrl2;
-	uint32_t ctrl3;
-} __rte_aligned(MLX5_WQE_DWORD_SIZE);
+};
 
 /* Small common part of the WQE. */
 struct mlx5_wqe {
@@ -135,17 +106,11 @@ struct mlx5_wqe {
 	struct mlx5_wqe_eth_seg_small eseg;
 };
 
-/* Vectorize WQE header. */
-struct mlx5_wqe_v {
-	rte_v128u32_t ctrl;
-	rte_v128u32_t eseg;
-};
-
 /* WQE. */
 struct mlx5_wqe64 {
 	struct mlx5_wqe hdr;
 	uint8_t raw[32];
-} __rte_aligned(MLX5_WQE_SIZE);
+} __rte_aligned(64);
 
 /* MPW session status. */
 enum mlx5_mpw_state {
@@ -172,21 +137,7 @@ struct mlx5_cqe {
 #if (RTE_CACHE_LINE_SIZE == 128)
 	uint8_t padding[64];
 #endif
-	uint8_t pkt_info;
-	uint8_t rsvd0[11];
-	uint32_t rx_hash_res;
-	uint8_t rx_hash_type;
-	uint8_t rsvd1[11];
-	uint8_t hds_ip_ext;
-	uint8_t l4_hdr_type_etc;
-	uint16_t vlan_info;
-	uint8_t rsvd2[12];
-	uint32_t byte_cnt;
-	uint64_t timestamp;
-	uint8_t rsvd3[4];
-	uint16_t wqe_counter;
-	uint8_t rsvd4;
-	uint8_t op_own;
+	struct mlx5_cqe64 cqe64;
 };
 
 #endif /* RTE_PMD_MLX5_PRM_H_ */
