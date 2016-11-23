@@ -481,6 +481,17 @@ mlx5_tx_burst(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 				pkt_inline_sz += copy_b;
 				/* Sanity check. */
 				assert(addr <= addr_end);
+			} else {
+				wqe->ctrl = (rte_v128u32_t){
+					htonl(txq->wqe_ci << 8),
+					htonl(txq->qp_num_8s | 1),
+					0,
+					0,
+					};
+				length = 0;
+				buf = *(pkts--);
+				ds = 1;
+				goto next_pkt_part;
 			}
 			/*
 			 * 2 DWORDs consumed by the WQE header + ETH segment +
@@ -577,6 +588,7 @@ next_pkt:
 			0,
 			0,
 		};
+next_pkt_part:
 		wqe->eseg = (rte_v128u32_t){
 			0,
 			cs_flags,

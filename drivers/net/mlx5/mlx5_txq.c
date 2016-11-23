@@ -314,8 +314,12 @@ txq_ctrl_setup(struct rte_eth_dev *dev, struct txq_ctrl *txq_ctrl,
 		/* CQ to be associated with the receive queue. */
 		.recv_cq = tmpl.cq,
 		.cap = {
-			/* Max number of outstanding WRs. */
-			.max_send_wr = ((priv->device_attr.max_qp_wr < desc) ?
+			/*
+			 * Max number of outstanding WRs.
+			 * "+1" for null WQE place holder.
+			 */
+			.max_send_wr = ((priv->device_attr.max_qp_wr <
+					(desc + 1)) ?
 					priv->device_attr.max_qp_wr :
 					desc),
 			/*
