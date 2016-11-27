@@ -505,7 +505,6 @@ mlx5_tx_burst(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 				if ((uintptr_t)dseg >= end)
 					dseg = (volatile rte_v128u32_t *)
 					       txq->wqes;
-				goto use_dseg;
 			} else if (!segs_n) {
 				goto next_pkt;
 			} else {
@@ -523,19 +522,18 @@ mlx5_tx_burst(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 			dseg = (volatile rte_v128u32_t *)
 				((uintptr_t)wqe + (3 * MLX5_WQE_DWORD_SIZE));
 			ds = 3;
-use_dseg:
-			/* Add the remaining packet as a simple ds. */
-			addr = htonll(addr);
-			*dseg = (rte_v128u32_t){
-				htonl(length),
-				txq_mp2mr(txq, txq_mb2mp(buf)),
-				addr,
-				addr >> 32,
-			};
-			++ds;
-			if (!segs_n)
-				goto next_pkt;
 		}
+		/* Add the remaining packet as a simple ds. */
+		addr = htonll(addr);
+		*dseg = (rte_v128u32_t){
+			htonl(length),
+			txq_mp2mr(txq, txq_mb2mp(buf)),
+			addr,
+			addr >> 32,
+		};
+		++ds;
+		if (!segs_n)
+			goto next_pkt;
 next_seg:
 		assert(buf);
 		assert(ds);
