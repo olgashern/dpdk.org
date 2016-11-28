@@ -84,6 +84,9 @@
 /* Device parameter to enable multi-packet send WQEs. */
 #define MLX5_TXQ_MPW_EN "txq_mpw_en"
 
+/* Device parameter to enable LSO. */
+#define MLX5_TXQ_LSO_EN "txq_lso_en"
+
 /**
  * Retrieve integer value from environment variable.
  *
@@ -287,6 +290,8 @@ mlx5_args_check(const char *key, const char *val, void *opaque)
 		priv->txqs_inline = tmp;
 	} else if (strcmp(MLX5_TXQ_MPW_EN, key) == 0) {
 		priv->mps &= !!tmp; /* Enable MPW only if HW supports */
+	} else if (strcmp(MLX5_TXQ_LSO_EN, key) == 0) {
+		priv->lso &= !!tmp;
 	} else {
 		WARN("%s: unknown parameter", key);
 		return -EINVAL;
@@ -312,6 +317,7 @@ mlx5_args(struct priv *priv, struct rte_devargs *devargs)
 		MLX5_RXQ_CQE_COMP_EN,
 		MLX5_TXQ_INLINE,
 		MLX5_TXQS_MIN_INLINE,
+		MLX5_TXQ_LSO_EN,
 		MLX5_TXQ_MPW_EN,
 		NULL,
 	};
@@ -429,7 +435,7 @@ mlx5_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 			mps = 0;
 		}
 		INFO("PCI information matches, using device \"%s\""
-		     " (SR-IOV: %s, MPS: %s)",
+		     " (SR-IOV: %s, LSO: true, MPS: %s)",
 		     list[i]->name,
 		     sriov ? "true" : "false",
 		     mps ? "true" : "false");
@@ -474,8 +480,11 @@ mlx5_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 			IBV_EXP_DEVICE_ATTR_RX_HASH |
 			IBV_EXP_DEVICE_ATTR_VLAN_OFFLOADS |
 			IBV_EXP_DEVICE_ATTR_RX_PAD_END_ALIGN |
+			IBV_EXP_DEVICE_ATTR_TSO_CAPS |
 			0;
 
+		exp_device_attr.tso_caps.max_tso = 262144;
+		exp_device_attr.tso_caps.supported_qpts =  IBV_QPT_RAW_ETH;
 		DEBUG("using port %u (%08" PRIx32 ")", port, test);
 
 		ctx = ibv_open_device(ibv_dev);
@@ -525,6 +534,7 @@ mlx5_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 		priv->port = port;
 		priv->pd = pd;
 		priv->mtu = ETHER_MTU;
+		priv->lso = 1; /* Enabled by default. */
 		priv->mps = mps; /* Enable MPW by default if supported. */
 		priv->cqe_comp = 1; /* Enable compression by default. */
 		err = mlx5_args(priv, pci_dev->device.devargs);
@@ -573,6 +583,11 @@ mlx5_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 		if (priv->mps && !mps) {
 			ERROR("multi-packet send not supported on this device"
 			      " (" MLX5_TXQ_MPW_EN ")");
+			err = ENOTSUP;
+			goto port_error;
+		}
+		if (priv->lso && priv->mps) {
+			ERROR("LSO and MPS can't coexists");
 			err = ENOTSUP;
 			goto port_error;
 		}

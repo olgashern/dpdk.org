@@ -337,8 +337,10 @@ txq_ctrl_setup(struct rte_eth_dev *dev, struct txq_ctrl *txq_ctrl,
 		.sq_sig_all = 0,
 		.pd = priv->pd,
 		.res_domain = tmpl.rd,
+		.max_tso_header = 128,  // ETH/IPv4/TCP header example
 		.comp_mask = (IBV_EXP_QP_INIT_ATTR_PD |
-			      IBV_EXP_QP_INIT_ATTR_RES_DOMAIN),
+			      IBV_EXP_QP_INIT_ATTR_RES_DOMAIN |
+			      IBV_EXP_QP_INIT_ATTR_MAX_TSO_HEADER),
 	};
 	if (priv->txq_inline && (priv->txqs_n >= priv->txqs_inline)) {
 		tmpl.txq.max_inline =

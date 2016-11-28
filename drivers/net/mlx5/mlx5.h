@@ -115,6 +115,7 @@ struct priv {
 	unsigned int hw_padding:1; /* End alignment padding is supported. */
 	unsigned int sriov:1; /* This is a VF or PF with VF devices. */
 	unsigned int mps:1; /* Whether multi-packet send is supported. */
+	unsigned int lso:1; /* Whether lso is supported. */
 	unsigned int cqe_comp:1; /* Whether CQE compression is enabled. */
 	unsigned int pending_alarm:1; /* An alarm is pending. */
 	unsigned int txq_inline; /* Maximum packet size for inlining. */

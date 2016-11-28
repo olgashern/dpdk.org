@@ -188,6 +188,12 @@ Run-time configuration
   It is currently only supported on the ConnectX-4 Lx family of adapters.
   Enabled by default.
 
+- ``txq_lso_en`` parameter [int]
+
+  A nonzero value enables TCP Segmentation Offloading (in hardware) on tx
+  side. It saves CPU time and PCI bandwidth.
+
+  Enabled by default.
 Prerequisites
 -------------
 
