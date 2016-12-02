@@ -1,8 +1,8 @@
 /*-
  *   BSD LICENSE
  *
- *   Copyright 2015-2016 6WIND S.A.
- *   Copyright 2015-2016 Mellanox.
+ *   Copyright 2015 6WIND S.A.
+ *   Copyright 2015 Mellanox.
  *
  *   Redistribution and use in source and binary forms, with or without
  *   modification, are permitted provided that the following conditions
@@ -122,7 +122,6 @@ mlx5_dev_close(struct rte_eth_dev *dev)
 	      (void *)dev,
 	      ((priv->ctx != NULL) ? priv->ctx->device->name : ""));
 	/* In case mlx5_dev_stop() has not been called. */
-	mlx5_timesync_disable(dev);
 	priv_dev_interrupt_handler_uninstall(priv, dev);
 	priv_special_flow_disable_all(priv);
 	priv_mac_addrs_disable(priv);
@@ -220,8 +219,6 @@ static const struct eth_dev_ops mlx5_dev_ops = {
 	.rss_hash_update = mlx5_rss_hash_update,
 	.rss_hash_conf_get = mlx5_rss_hash_conf_get,
 	.filter_ctrl = mlx5_dev_filter_ctrl,
-	.timesync_enable = mlx5_timesync_enable,
-	.timesync_disable = mlx5_timesync_disable,
 };
 
 static struct {
@@ -412,21 +409,9 @@ mlx5_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 		       PCI_DEVICE_ID_MELLANOX_CONNECTX4VF) ||
 		      (pci_dev->id.device_id ==
 		       PCI_DEVICE_ID_MELLANOX_CONNECTX4LXVF));
-		/*
-		 * Multi-packet send is supported by ConnectX-4 Lx PF as well
-		 * as all ConnectX-5 devices.
-		 */
-		switch (pci_dev->id.device_id) {
-		case PCI_DEVICE_ID_MELLANOX_CONNECTX4LX:
-		case PCI_DEVICE_ID_MELLANOX_CONNECTX5:
-		case PCI_DEVICE_ID_MELLANOX_CONNECTX5VF:
-		case PCI_DEVICE_ID_MELLANOX_CONNECTX5EX:
-		case PCI_DEVICE_ID_MELLANOX_CONNECTX5EXVF:
-			mps = 1;
-			break;
-		default:
-			mps = 0;
-		}
+		/* Multi-packet send is only supported by ConnectX-4 Lx PF. */
+		mps = (pci_dev->id.device_id ==
+		       PCI_DEVICE_ID_MELLANOX_CONNECTX4LX);
 		INFO("PCI information matches, using device \"%s\""
 		     " (SR-IOV: %s, MPS: %s)",
 		     list[i]->name,
@@ -736,22 +721,6 @@ static const struct rte_pci_id mlx5_pci_id_map[] = {
 	{
 		RTE_PCI_DEVICE(PCI_VENDOR_ID_MELLANOX,
 			       PCI_DEVICE_ID_MELLANOX_CONNECTX4LXVF)
-	},
-	{
-		RTE_PCI_DEVICE(PCI_VENDOR_ID_MELLANOX,
-			       PCI_DEVICE_ID_MELLANOX_CONNECTX5)
-	},
-	{
-		RTE_PCI_DEVICE(PCI_VENDOR_ID_MELLANOX,
-			       PCI_DEVICE_ID_MELLANOX_CONNECTX5VF)
-	},
-	{
-		RTE_PCI_DEVICE(PCI_VENDOR_ID_MELLANOX,
-			       PCI_DEVICE_ID_MELLANOX_CONNECTX5EX)
-	},
-	{
-		RTE_PCI_DEVICE(PCI_VENDOR_ID_MELLANOX,
-			       PCI_DEVICE_ID_MELLANOX_CONNECTX5EXVF)
 	},
 	{
 		.vendor_id = 0

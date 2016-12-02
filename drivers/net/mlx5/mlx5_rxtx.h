@@ -1,8 +1,8 @@
 /*-
  *   BSD LICENSE
  *
- *   Copyright 2015-2016 6WIND S.A.
- *   Copyright 2015-2016 Mellanox.
+ *   Copyright 2015 6WIND S.A.
+ *   Copyright 2015 Mellanox.
  *
  *   Redistribution and use in source and binary forms, with or without
  *   modification, are permitted provided that the following conditions
@@ -60,7 +60,6 @@
 #endif
 
 #include "mlx5_utils.h"
-#include "mlx5_time.h"
 #include "mlx5.h"
 #include "mlx5_autoconf.h"
 #include "mlx5_defs.h"
@@ -110,7 +109,6 @@ struct rxq {
 	unsigned int csum_l2tun:1; /* Same for L2 tunnels. */
 	unsigned int vlan_strip:1; /* Enable VLAN stripping. */
 	unsigned int crc_present:1; /* CRC must be subtracted. */
-	unsigned int timestamps_enabled:1; /* timestamping enabled */
 	unsigned int sges_n:2; /* Log 2 of SGEs (max buffers per packet). */
 	unsigned int cqe_n:4; /* Log 2 of CQ elements. */
 	unsigned int elts_n:4; /* Log 2 of Mbufs. */
@@ -127,7 +125,6 @@ struct rxq {
 	struct rte_mbuf *(*elts)[];
 	struct rte_mempool *mp;
 	struct mlx5_rxq_stats stats;
-	volatile struct mlx5_timestamp_sync timesync; /* per queue copy */
 } __rte_cache_aligned;
 
 /* RX queue control descriptor. */
@@ -254,11 +251,12 @@ struct txq {
 	uint16_t elts_n:4; /* (*elts)[] length (in log2). */
 	uint16_t cqe_n:4; /* Number of CQ elements (in log2). */
 	uint16_t wqe_n:4; /* Number of of WQ elements (in log2). */
-	uint16_t:4; /* Remaining bits. */
-	uint32_t max_inline; /* Multiple of RTE_CACHE_LINE_SIZE to inline. */
+	uint16_t bf_buf_size:4; /* Log2 Blueflame size. */
+	uint16_t bf_offset; /* Blueflame offset. */
+	uint16_t max_inline; /* Multiple of RTE_CACHE_LINE_SIZE to inline. */
 	uint32_t qp_num_8s; /* QP number shifted by 8. */
 	volatile struct mlx5_cqe (*cqes)[]; /* Completion queue. */
-	volatile void *wqes; /* Work queue (use volatile to write into). */
+	volatile struct mlx5_wqe64 (*wqes)[]; /* Work queue. */
 	volatile uint32_t *qp_db; /* Work queue doorbell. */
 	volatile uint32_t *cq_db; /* Completion queue doorbell. */
 	volatile void *bf_reg; /* Blueflame register. */

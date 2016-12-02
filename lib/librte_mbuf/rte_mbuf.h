@@ -450,7 +450,8 @@ struct rte_mbuf {
 
 	uint32_t seqn; /**< Sequence number. See also rte_reorder_insert() */
 
-	uint64_t timestamp;       /**< Packet's timestamp, usually in ns */
+	/** Outer VLAN TCI (CPU order), valid if PKT_RX_QINQ_STRIPPED is set. */
+	uint16_t vlan_tci_outer;
 
 	/* second cache line - fields only used in slow path or on TX */
 	MARKER cacheline1 __rte_cache_min_aligned;
@@ -485,9 +486,6 @@ struct rte_mbuf {
 			/* uint64_t unused:8; */
 		};
 	};
-
-	/** Outer VLAN TCI (CPU order), valid if PKT_RX_QINQ_STRIPPED is set. */
-	uint16_t vlan_tci_outer;
 
 	/** Size of the application private data. In case of an indirect
 	 * mbuf, it stores the direct mbuf private data size. */

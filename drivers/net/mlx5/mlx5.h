@@ -1,8 +1,8 @@
 /*-
  *   BSD LICENSE
  *
- *   Copyright 2015-2016 6WIND S.A.
- *   Copyright 2015-2016 Mellanox.
+ *   Copyright 2015 6WIND S.A.
+ *   Copyright 2015 Mellanox.
  *
  *   Redistribution and use in source and binary forms, with or without
  *   modification, are permitted provided that the following conditions
@@ -54,7 +54,6 @@
 #ifdef PEDANTIC
 #pragma GCC diagnostic ignored "-Wpedantic"
 #endif
-#include <rte_alarm.h>
 #include <rte_ether.h>
 #include <rte_ethdev.h>
 #include <rte_spinlock.h>
@@ -65,7 +64,6 @@
 #endif
 
 #include "mlx5_utils.h"
-#include "mlx5_time.h"
 #include "mlx5_rxtx.h"
 #include "mlx5_autoconf.h"
 #include "mlx5_defs.h"
@@ -84,10 +82,6 @@ enum {
 	PCI_DEVICE_ID_MELLANOX_CONNECTX4VF = 0x1014,
 	PCI_DEVICE_ID_MELLANOX_CONNECTX4LX = 0x1015,
 	PCI_DEVICE_ID_MELLANOX_CONNECTX4LXVF = 0x1016,
-	PCI_DEVICE_ID_MELLANOX_CONNECTX5 = 0x1017,
-	PCI_DEVICE_ID_MELLANOX_CONNECTX5VF = 0x1018,
-	PCI_DEVICE_ID_MELLANOX_CONNECTX5EX = 0x1019,
-	PCI_DEVICE_ID_MELLANOX_CONNECTX5EXVF = 0x101a,
 };
 
 struct priv {
@@ -119,7 +113,6 @@ struct priv {
 	unsigned int mps:1; /* Whether multi-packet send is supported. */
 	unsigned int cqe_comp:1; /* Whether CQE compression is enabled. */
 	unsigned int pending_alarm:1; /* An alarm is pending. */
-	unsigned int timesync_en:1; /* Timesync (timestamping) enabled */
 	unsigned int txq_inline; /* Maximum packet size for inlining. */
 	unsigned int txqs_inline; /* Queue number threshold for inlining. */
 	/* RX/TX queues. */
@@ -127,7 +120,6 @@ struct priv {
 	unsigned int txqs_n; /* TX queues array size. */
 	struct rxq *(*rxqs)[]; /* RX queues. */
 	struct txq *(*txqs)[]; /* TX queues. */
-	struct mlx5_timesync timesync; /* time synronization object */
 	/* Indirection tables referencing all RX WQs. */
 	struct ibv_exp_rwq_ind_table *(*ind_tables)[];
 	unsigned int ind_tables_n; /* Number of indirection tables. */
@@ -212,8 +204,6 @@ int mlx5_set_link_up(struct rte_eth_dev *dev);
 struct priv *mlx5_secondary_data_setup(struct priv *priv);
 void priv_select_tx_function(struct priv *);
 void priv_select_rx_function(struct priv *);
-int mlx5_timesync_enable(struct rte_eth_dev *dev);
-int mlx5_timesync_disable(struct rte_eth_dev *dev);
 
 /* mlx5_mac.c */
 
