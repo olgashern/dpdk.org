@@ -251,10 +251,12 @@ struct txq {
 	uint16_t elts_n:4; /* (*elts)[] length (in log2). */
 	uint16_t cqe_n:4; /* Number of CQ elements (in log2). */
 	uint16_t wqe_n:4; /* Number of of WQ elements (in log2). */
-	uint32_t max_inline; /* Multiple of RTE_CACHE_LINE_SIZE to inline. */
+	uint16_t bf_buf_size:4; /* Log2 Blueflame size. */
+	uint16_t bf_offset; /* Blueflame offset. */
+	uint16_t max_inline; /* Multiple of RTE_CACHE_LINE_SIZE to inline. */
 	uint32_t qp_num_8s; /* QP number shifted by 8. */
 	volatile struct mlx5_cqe (*cqes)[]; /* Completion queue. */
-	volatile void *wqes; /* Work queue (use volatile to write into). */
+	volatile struct mlx5_wqe64 (*wqes)[]; /* Work queue. */
 	volatile uint32_t *qp_db; /* Work queue doorbell. */
 	volatile uint32_t *cq_db; /* Completion queue doorbell. */
 	volatile void *bf_reg; /* Blueflame register. */
