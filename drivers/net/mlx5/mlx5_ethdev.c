@@ -587,6 +587,8 @@ mlx5_dev_infos_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *info)
 		(priv->hw_vlan_strip ? DEV_RX_OFFLOAD_VLAN_STRIP : 0);
 	if (!priv->mps)
 		info->tx_offload_capa = DEV_TX_OFFLOAD_VLAN_INSERT;
+	if (priv->lso)
+		info->tx_offload_capa |= DEV_TX_OFFLOAD_TCP_TSO;
 	if (priv->hw_csum)
 		info->tx_offload_capa |=
 			(DEV_TX_OFFLOAD_IPV4_CKSUM |

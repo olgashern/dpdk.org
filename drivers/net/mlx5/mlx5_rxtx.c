@@ -388,6 +388,8 @@ mlx5_tx_burst(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 		uint16_t pkt_inline_sz = MLX5_WQE_DWORD_SIZE;
 		uint16_t ehdr;
 		uint8_t cs_flags = 0;
+		uint8_t header_sum;
+		uint8_t tso;
 #ifdef MLX5_PMD_SOFT_COUNTERS
 		uint32_t total_length = 0;
 #endif
@@ -429,37 +431,29 @@ mlx5_tx_burst(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 			pkt_addr = rte_pktmbuf_mtod(*pkts, volatile void *);
 			rte_prefetch0(pkt_addr);
 		}
-		/* Should we enable HW CKSUM offload */
-		if (buf->ol_flags &
-		    (PKT_TX_IP_CKSUM | PKT_TX_TCP_CKSUM | PKT_TX_UDP_CKSUM)) {
-			cs_flags = MLX5_ETH_WQE_L3_CSUM | MLX5_ETH_WQE_L4_CSUM;
-		}
-		raw = ((uint8_t *)(uintptr_t)wqe) + 2 * MLX5_WQE_DWORD_SIZE;
-		/*
-		 * Start by copying the Ethernet header minus the first two
-		 * bytes which will be appended at the end of the Ethernet
-		 * segment.
-		 */
-		memcpy((uint8_t *)raw, ((uint8_t *)addr) + 2, 16);
-		length -= MLX5_WQE_DWORD_SIZE;
-		addr += MLX5_WQE_DWORD_SIZE;
-		/* Replace the Ethernet type by the VLAN if necessary. */
-		if (buf->ol_flags & PKT_TX_VLAN_PKT) {
-			uint32_t vlan = htonl(0x81000000 | buf->vlan_tci);
+		tso = buf->tso_segsz && buf->l4_len;
+		if (tso) {
+			/*
+			 * After copying the ETH seg we need to copy 16 bytes
+			 * less.
+			 */
+			header_sum = buf->l2_len + buf->l3_len + buf->l4_len
+				     - MLX5_WQE_DWORD_SIZE;
+			raw = ((uint8_t *)(uintptr_t)wqe) +
+			      2 * MLX5_WQE_DWORD_SIZE;
+			/*
+			 * Start by copying the Ethernet header minus the
+			 * first two bytes which will be appended at the
+			 * end of the Ethernet segment.
+			 */
+			memcpy((uint8_t *)raw, ((uint8_t *)addr) + 2,
+			       MLX5_WQE_DWORD_SIZE);
+			length -= MLX5_WQE_DWORD_SIZE;
+			addr += MLX5_WQE_DWORD_SIZE;
 
-			memcpy((uint8_t *)(raw + MLX5_WQE_DWORD_SIZE - 2 -
-					   sizeof(vlan)),
-			       &vlan, sizeof(vlan));
-			addr -= sizeof(vlan);
-			length += sizeof(vlan);
-		}
-		/* Inline if enough room. */
-		if (txq->max_inline != 0) {
 			uintptr_t end = (uintptr_t)
 				(((uintptr_t)txq->wqes) +
 				 (1 << txq->wqe_n) * MLX5_WQE_SIZE);
-			uint16_t max_inline =
-				txq->max_inline * RTE_CACHE_LINE_SIZE;
 			uint16_t room;
 
 			/*
@@ -468,12 +462,9 @@ mlx5_tx_burst(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 			 */
 			raw += MLX5_WQE_DWORD_SIZE - 2;
 			room = end - (uintptr_t)raw;
-			if (room > max_inline) {
-				uintptr_t addr_end = (addr + max_inline) &
-					~(RTE_CACHE_LINE_SIZE - 1);
-				uint16_t copy_b = ((addr_end - addr) > length) ?
-						  length :
-						  (addr_end - addr);
+			if (room > header_sum) {
+				uintptr_t addr_end = addr + header_sum;
+				uint16_t copy_b = addr_end - addr;
 
 				rte_memcpy((void *)raw, (void *)addr, copy_b);
 				addr += copy_b;
@@ -488,10 +479,16 @@ mlx5_tx_burst(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 					0,
 					0,
 					};
+				wqe->eseg = (rte_v128u32_t){
+					0,
+					0,
+					0,
+					0};
 				length = 0;
 				buf = *(pkts--);
 				ds = 1;
-				goto next_pkt_part;
+				elts_head = (elts_head - 1) & (elts_n - 1);
+				goto next_pkt_end;
 			}
 			/*
 			 * 2 DWORDs consumed by the WQE header + ETH segment +
@@ -500,28 +497,138 @@ mlx5_tx_burst(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 			ds = 2 + MLX5_WQE_DS(pkt_inline_sz - 2);
 			if (length > 0) {
 				dseg = (volatile rte_v128u32_t *)
-					((uintptr_t)wqe +
-					 (ds * MLX5_WQE_DWORD_SIZE));
-				if ((uintptr_t)dseg >= end)
-					dseg = (volatile rte_v128u32_t *)
-					       txq->wqes;
+				       ((uintptr_t)wqe +
+				       (ds * MLX5_WQE_DWORD_SIZE));
+			if ((uintptr_t)dseg >= end)
+				dseg = (volatile rte_v128u32_t *)
+					txq->wqes;
 			} else if (!segs_n) {
 				goto next_pkt;
 			} else {
 				/* dseg will be advance as part of next_seg*/
 				dseg = (volatile rte_v128u32_t *)
-					((uintptr_t)wqe +
-					 ((ds - 1) * MLX5_WQE_DWORD_SIZE));
+				       ((uintptr_t)wqe +
+					((ds - 1) * MLX5_WQE_DWORD_SIZE));
 				goto next_seg;
 			}
 		} else {
+			/* Should we enable HW CKSUM offload */
+			if (buf->ol_flags &
+			    (PKT_TX_IP_CKSUM |
+			     PKT_TX_TCP_CKSUM |
+			     PKT_TX_UDP_CKSUM)) {
+				cs_flags = MLX5_ETH_WQE_L3_CSUM |
+					   MLX5_ETH_WQE_L4_CSUM;
+			}
+			raw = ((uint8_t *)(uintptr_t)wqe) +
+			      2 * MLX5_WQE_DWORD_SIZE;
 			/*
-			 * No inline has been done in the packet, only the
-			 * Ethernet Header as been stored.
+			 * Start by copying the Ethernet header minus the
+			 * first two bytes which will be appended at the end
+			 * of the Ethernet segment.
 			 */
-			dseg = (volatile rte_v128u32_t *)
-				((uintptr_t)wqe + (3 * MLX5_WQE_DWORD_SIZE));
-			ds = 3;
+			memcpy((uint8_t *)raw, ((uint8_t *)addr) + 2, 16);
+			length -= MLX5_WQE_DWORD_SIZE;
+			addr += MLX5_WQE_DWORD_SIZE;
+			/* Replace the Ethernet type by the VLAN if necessary.
+			 */
+			if (buf->ol_flags & PKT_TX_VLAN_PKT) {
+				uint32_t vlan = htonl(0x81000000 |
+						      buf->vlan_tci);
+
+				memcpy((uint8_t *)(raw + MLX5_WQE_DWORD_SIZE -
+						   2 - sizeof(vlan)),
+				       &vlan, sizeof(vlan));
+				addr -= sizeof(vlan);
+				length += sizeof(vlan);
+			}
+			/* Inline if enough room. */
+			if (txq->max_inline != 0) {
+				uintptr_t end = (uintptr_t)
+					    (((uintptr_t)txq->wqes) +
+					    (1 << txq->wqe_n) * MLX5_WQE_SIZE);
+				uint16_t max_inline =
+					 txq->max_inline * RTE_CACHE_LINE_SIZE;
+				uint16_t room;
+
+				/*
+				 * raw starts two bytes before the boundary to
+				 * continue the above copy of packet data.
+				 */
+				raw += MLX5_WQE_DWORD_SIZE - 2;
+				room = end - (uintptr_t)raw;
+				if (room > max_inline) {
+					uintptr_t addr_end =
+						(addr + max_inline) &
+						~(RTE_CACHE_LINE_SIZE - 1);
+					uint16_t copy_b = ((addr_end - addr)
+							  > length) ?
+							  length :
+							  (addr_end - addr);
+
+					rte_memcpy((void *)raw, (void *)addr,
+						   copy_b);
+					addr += copy_b;
+					length -= copy_b;
+					pkt_inline_sz += copy_b;
+					/* Sanity check. */
+					assert(addr <= addr_end);
+				} else {
+					wqe->ctrl = (rte_v128u32_t){
+						htonl(txq->wqe_ci << 8),
+						htonl(txq->qp_num_8s | 1),
+						0,
+						0,
+						};
+					wqe->eseg = (rte_v128u32_t){
+						0,
+						0,
+						0,
+						0};
+					length = 0;
+					buf = *(pkts--);
+					ds = 1;
+					elts_head = (elts_head - 1) &
+						    (elts_n - 1);
+					goto next_pkt_end;
+				}
+				/*
+				 * 2 DWORDs consumed by the WQE header
+				 * + ETH segment + 1 DSEG +
+				 * the size of the inline part of the packet.
+				 */
+				ds = 2 + MLX5_WQE_DS(pkt_inline_sz - 2);
+				if (length > 0) {
+					dseg = (volatile rte_v128u32_t *)
+						((uintptr_t)wqe +
+						 (ds * MLX5_WQE_DWORD_SIZE));
+					if ((uintptr_t)dseg >= end)
+						dseg =
+						  (volatile rte_v128u32_t *)
+						  txq->wqes;
+				} else if (!segs_n) {
+					goto next_pkt;
+				} else {
+					/*
+					 * dseg will be advance as part
+					 * of next_seg.
+					 */
+					dseg = (volatile rte_v128u32_t *)
+					       ((uintptr_t)wqe +
+						((ds - 1) *
+						 MLX5_WQE_DWORD_SIZE));
+					goto next_seg;
+				}
+			} else {
+				/*
+				 * No inline has been done in the packet,
+				 * only the Ethernet Header as been stored.
+				 */
+				dseg = (volatile rte_v128u32_t *)
+					((uintptr_t)wqe +
+					 (3 * MLX5_WQE_DWORD_SIZE));
+				ds = 3;
+			}
 		}
 		/* Add the remaining packet as a simple ds. */
 		addr = htonll(addr);
@@ -578,21 +685,38 @@ next_seg:
 		else
 			--pkts_n;
 next_pkt:
-		++i;
 		/* Initialize known and common part of the WQE structure. */
-		wqe->ctrl = (rte_v128u32_t){
-			htonl((txq->wqe_ci << 8) | MLX5_OPCODE_SEND),
-			htonl(txq->qp_num_8s | ds),
-			0,
-			0,
-		};
-next_pkt_part:
-		wqe->eseg = (rte_v128u32_t){
-			0,
-			cs_flags,
-			0,
-			(ehdr << 16) | htons(pkt_inline_sz),
-		};
+		if (tso) {
+			wqe->ctrl = (rte_v128u32_t){
+				htonl((txq->wqe_ci << 8) | MLX5_OPCODE_TSO),
+				htonl(txq->qp_num_8s | ds),
+				0,
+				0,
+			};
+			wqe->eseg = (rte_v128u32_t){
+				0,
+				MLX5_ETH_WQE_L3_CSUM |
+					MLX5_ETH_WQE_L4_CSUM |
+					htons(buf->tso_segsz) << 16,
+				0,
+				(ehdr << 16) | htons(pkt_inline_sz),
+			};
+		} else {
+			wqe->ctrl = (rte_v128u32_t){
+				htonl((txq->wqe_ci << 8) | MLX5_OPCODE_SEND),
+				htonl(txq->qp_num_8s | ds),
+				0,
+				0,
+			};
+			wqe->eseg = (rte_v128u32_t){
+				0,
+				cs_flags,
+				0,
+				(ehdr << 16) | htons(pkt_inline_sz),
+			};
+		}
+next_pkt_end:
+		++i;
 		txq->wqe_ci += (ds + 3) / 4;
 #ifdef MLX5_PMD_SOFT_COUNTERS
 		/* Increment sent bytes counter. */
