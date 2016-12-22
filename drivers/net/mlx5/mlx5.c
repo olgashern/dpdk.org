@@ -409,21 +409,9 @@ mlx5_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 		       PCI_DEVICE_ID_MELLANOX_CONNECTX4VF) ||
 		      (pci_dev->id.device_id ==
 		       PCI_DEVICE_ID_MELLANOX_CONNECTX4LXVF));
-		/*
-		 * Multi-packet send is supported by ConnectX-4 Lx PF as well
-		 * as all ConnectX-5 devices.
-		 */
-		switch (pci_dev->id.device_id) {
-		case PCI_DEVICE_ID_MELLANOX_CONNECTX4LX:
-		case PCI_DEVICE_ID_MELLANOX_CONNECTX5:
-		case PCI_DEVICE_ID_MELLANOX_CONNECTX5VF:
-		case PCI_DEVICE_ID_MELLANOX_CONNECTX5EX:
-		case PCI_DEVICE_ID_MELLANOX_CONNECTX5EXVF:
-			mps = 1;
-			break;
-		default:
-			mps = 0;
-		}
+		/* Multi-packet send is only supported by ConnectX-4 Lx PF. */
+		mps = (pci_dev->id.device_id ==
+		       PCI_DEVICE_ID_MELLANOX_CONNECTX4LX);
 		INFO("PCI information matches, using device \"%s\""
 		     " (SR-IOV: %s, MPS: %s)",
 		     list[i]->name,
@@ -548,6 +536,10 @@ mlx5_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 		      (priv->hw_csum_l2tun ? "" : "not "));
 
 		priv->ind_table_max_size = exp_device_attr.rx_hash_caps.max_rwq_indirection_table_size;
+		/* Remove this check once DPDK supports larger/variable
+		 * indirection tables. */
+		if (priv->ind_table_max_size > (unsigned int)RSS_INDIRECTION_TABLE_SIZE)
+			priv->ind_table_max_size = RSS_INDIRECTION_TABLE_SIZE;
 		DEBUG("maximum RX indirection table size is %u",
 		      priv->ind_table_max_size);
 		priv->hw_vlan_strip = !!(exp_device_attr.wq_vlan_offloads_cap &
@@ -729,22 +721,6 @@ static const struct rte_pci_id mlx5_pci_id_map[] = {
 	{
 		RTE_PCI_DEVICE(PCI_VENDOR_ID_MELLANOX,
 			       PCI_DEVICE_ID_MELLANOX_CONNECTX4LXVF)
-	},
-	{
-		RTE_PCI_DEVICE(PCI_VENDOR_ID_MELLANOX,
-			       PCI_DEVICE_ID_MELLANOX_CONNECTX5)
-	},
-	{
-		RTE_PCI_DEVICE(PCI_VENDOR_ID_MELLANOX,
-			       PCI_DEVICE_ID_MELLANOX_CONNECTX5VF)
-	},
-	{
-		RTE_PCI_DEVICE(PCI_VENDOR_ID_MELLANOX,
-			       PCI_DEVICE_ID_MELLANOX_CONNECTX5EX)
-	},
-	{
-		RTE_PCI_DEVICE(PCI_VENDOR_ID_MELLANOX,
-			       PCI_DEVICE_ID_MELLANOX_CONNECTX5EXVF)
 	},
 	{
 		.vendor_id = 0
