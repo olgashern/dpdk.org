@@ -473,21 +473,26 @@ mlx5_tx_burst(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 				/* Sanity check. */
 				assert(addr <= addr_end);
 			} else {
+				elts_head = (elts_head - 1) &
+					    (elts_n - 1);
 				wqe->ctrl = (rte_v128u32_t){
 					htonl(txq->wqe_ci << 8),
 					htonl(txq->qp_num_8s | 1),
 					0,
-					0,
+					elts_head,
 					};
 				wqe->eseg = (rte_v128u32_t){
 					0,
 					0,
 					0,
 					0};
+				max++;
+				pkts_n++;
 				length = 0;
 				buf = *(pkts--);
 				ds = 1;
-				elts_head = (elts_head - 1) & (elts_n - 1);
+				i--;
+				txq->elts_head = elts_head;
 				goto next_pkt_end;
 			}
 			/*
@@ -574,22 +579,26 @@ mlx5_tx_burst(void *dpdk_txq, struct rte_mbuf **pkts, uint16_t pkts_n)
 					/* Sanity check. */
 					assert(addr <= addr_end);
 				} else {
+					elts_head = (elts_head - 1) &
+						    (elts_n - 1);
 					wqe->ctrl = (rte_v128u32_t){
 						htonl(txq->wqe_ci << 8),
 						htonl(txq->qp_num_8s | 1),
 						0,
-						0,
+						elts_head,
 						};
 					wqe->eseg = (rte_v128u32_t){
 						0,
 						0,
 						0,
 						0};
+					max++;
+					pkts_n++;
 					length = 0;
 					buf = *(pkts--);
 					ds = 1;
-					elts_head = (elts_head - 1) &
-						    (elts_n - 1);
+					i--;
+					txq->elts_head = elts_head;
 					goto next_pkt_end;
 				}
 				/*
